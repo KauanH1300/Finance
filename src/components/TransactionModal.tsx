@@ -8,6 +8,7 @@ interface TransactionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (transaction: Omit<Transaction, 'id'>, id?: string) => void;
+  onSaveInstallments?: (transactions: Array<Omit<Transaction, 'id'>>) => void;
   editingTransaction?: Transaction | null;
   categories: Category[];
 }
@@ -16,6 +17,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   isOpen,
   onClose,
   onSave,
+  onSaveInstallments,
   editingTransaction,
   categories,
 }) => {
@@ -30,6 +32,12 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const [notes, setNotes] = useState<string>('');
   const [error, setError] = useState<string>('');
 
+  // Installment State (Parcelas)
+  const [isInstallment, setIsInstallment] = useState<boolean>(false);
+  const [installmentCount, setInstallmentCount] = useState<number>(5);
+  const [installmentAmountInput, setInstallmentAmountInput] = useState<string>('');
+  const [totalAmountInput, setTotalAmountInput] = useState<string>('');
+
   const filteredCategories = categories.filter((c) => c.type === type);
 
   useEffect(() => {
@@ -43,6 +51,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       setBucket(editingTransaction.bucket);
       setPaymentMethod(editingTransaction.paymentMethod);
       setNotes(editingTransaction.notes || '');
+      setIsInstallment(false);
     } else {
       // Defaults for new entry
       setType('expense');
@@ -56,6 +65,10 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       setStatus('completed');
       setPaymentMethod('pix');
       setNotes('');
+      setIsInstallment(false);
+      setInstallmentCount(5);
+      setInstallmentAmountInput('');
+      setTotalAmountInput('');
     }
     setError('');
   }, [editingTransaction, isOpen, categories]);
@@ -63,6 +76,9 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   // When type changes, ensure valid category
   const handleTypeChange = (newType: TransactionType) => {
     setType(newType);
+    if (newType === 'income') {
+      setIsInstallment(false);
+    }
     const validCat = categories.find((c) => c.type === newType);
     if (validCat) {
       setCategoryId(validCat.id);
@@ -80,7 +96,45 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
   const handleAmountQuickAdd = (add: number) => {
     const current = parseFloat(amountStr) || 0;
-    setAmountStr((current + add).toFixed(2));
+    const next = (current + add).toFixed(2);
+    setAmountStr(next);
+    if (isInstallment && installmentCount > 0) {
+      setInstallmentAmountInput(next);
+      setTotalAmountInput((parseFloat(next) * installmentCount).toFixed(2));
+    }
+  };
+
+  // Synchronize installment calculation
+  const handleInstallmentCountChange = (count: number) => {
+    setInstallmentCount(count);
+    const perInst = parseFloat(installmentAmountInput.replace(',', '.'));
+    if (perInst && perInst > 0) {
+      setTotalAmountInput((perInst * count).toFixed(2));
+    } else {
+      const tot = parseFloat(totalAmountInput.replace(',', '.'));
+      if (tot && tot > 0) {
+        setInstallmentAmountInput((tot / count).toFixed(2));
+      }
+    }
+  };
+
+  const handleInstallmentAmountInputChange = (val: string) => {
+    setInstallmentAmountInput(val);
+    setAmountStr(val);
+    const perInst = parseFloat(val.replace(',', '.'));
+    if (perInst && !isNaN(perInst)) {
+      setTotalAmountInput((perInst * installmentCount).toFixed(2));
+    }
+  };
+
+  const handleTotalAmountInputChange = (val: string) => {
+    setTotalAmountInput(val);
+    const tot = parseFloat(val.replace(',', '.'));
+    if (tot && !isNaN(tot) && installmentCount > 0) {
+      const perInst = (tot / installmentCount).toFixed(2);
+      setInstallmentAmountInput(perInst);
+      setAmountStr(perInst);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -100,6 +154,62 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     }
     if (!date) {
       setError('Selecione uma data.');
+      return;
+    }
+
+    // Installments batch creation
+    if (isInstallment && type === 'expense' && !editingTransaction) {
+      const cleanInstallmentAmount = parseFloat(installmentAmountInput.replace(',', '.'));
+      if (!cleanInstallmentAmount || cleanInstallmentAmount <= 0) {
+        setError('Por favor, informe o valor de cada parcela.');
+        return;
+      }
+      if (installmentCount < 2) {
+        setError('O número de parcelas deve ser de pelo menos 2.');
+        return;
+      }
+
+      const installmentGroupId = 'inst-' + Date.now();
+      const [yearStr, monthStr, dayStr] = date.split('-');
+      const baseYear = parseInt(yearStr, 10);
+      const baseMonth = parseInt(monthStr, 10); // 1-12
+      const baseDay = parseInt(dayStr, 10);
+
+      const batch: Array<Omit<Transaction, 'id'>> = [];
+
+      for (let i = 0; i < installmentCount; i++) {
+        // Safe month addition
+        const targetDate = new Date(baseYear, baseMonth - 1 + i, baseDay);
+        const y = targetDate.getFullYear();
+        const m = String(targetDate.getMonth() + 1).padStart(2, '0');
+        const d = String(targetDate.getDate()).padStart(2, '0');
+        const installmentDateStr = `${y}-${m}-${d}`;
+
+        batch.push({
+          type: 'expense',
+          amount: cleanInstallmentAmount,
+          description: `${description.trim()} (${i + 1}/${installmentCount})`,
+          categoryId,
+          date: installmentDateStr,
+          status: i === 0 ? status : 'pending',
+          bucket,
+          paymentMethod: paymentMethod === 'pix' ? 'credit' : paymentMethod,
+          notes: notes.trim()
+            ? `${notes.trim()} · Parcela ${i + 1} de ${installmentCount}`
+            : `Parcela ${i + 1} de ${installmentCount}`,
+          installmentId: installmentGroupId,
+          installmentNumber: i + 1,
+          totalInstallments: installmentCount,
+          installmentTotalAmount: cleanInstallmentAmount * installmentCount,
+        });
+      }
+
+      if (onSaveInstallments) {
+        onSaveInstallments(batch);
+      } else {
+        batch.forEach((tx) => onSave(tx));
+      }
+      onClose();
       return;
     }
 
@@ -371,6 +481,126 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                   <p className="text-[10px] text-slate-400 mt-0.5">Futuro</p>
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Installments Option (Parcelamento no Cartão/Carnê) */}
+          {type === 'expense' && !editingTransaction && (
+            <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-emerald-400" />
+                  <div>
+                    <span className="text-xs font-bold text-white block">Compra Parcelada?</span>
+                    <span className="text-[11px] text-slate-400">Dividir e lançar parcelas nos próximos meses</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextState = !isInstallment;
+                    setIsInstallment(nextState);
+                    if (nextState) {
+                      setPaymentMethod('credit');
+                      const currentVal = parseFloat(amountStr.replace(',', '.')) || 0;
+                      if (currentVal > 0) {
+                        setInstallmentAmountInput(currentVal.toFixed(2));
+                        setTotalAmountInput((currentVal * installmentCount).toFixed(2));
+                      }
+                    }
+                  }}
+                  className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 ${
+                    isInstallment ? 'bg-emerald-500' : 'bg-slate-800'
+                  }`}
+                >
+                  <div
+                    className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                      isInstallment ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {isInstallment && (
+                <div className="space-y-3 pt-2.5 border-t border-slate-800/80">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block mb-1.5">
+                      Número de Parcelas
+                    </label>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {[2, 3, 4, 5, 6, 10, 12].map((num) => (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => handleInstallmentCountChange(num)}
+                          className={`flex-1 min-w-[40px] py-1.5 rounded-xl text-xs font-black transition-all ${
+                            installmentCount === num
+                              ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                              : 'bg-slate-900 border border-slate-800 text-slate-300 hover:text-white'
+                          }`}
+                        >
+                          {num}x
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="text-[11px] text-slate-400">Outra quantidade:</span>
+                      <input
+                        type="number"
+                        min="2"
+                        max="60"
+                        value={installmentCount}
+                        onChange={(e) => handleInstallmentCountChange(Math.max(2, parseInt(e.target.value) || 2))}
+                        className="w-16 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white font-bold text-center outline-none focus:border-emerald-500"
+                      />
+                      <span className="text-[11px] text-slate-400">parcelas</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 bg-slate-900/90 p-3 rounded-xl border border-slate-800">
+                    <div>
+                      <label className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">
+                        Valor de Cada Parcela
+                      </label>
+                      <div className="flex items-center gap-1 mt-1">
+                        <span className="text-xs text-emerald-400 font-bold">R$</span>
+                        <input
+                          type="text"
+                          value={installmentAmountInput}
+                          onChange={(e) => handleInstallmentAmountInputChange(e.target.value)}
+                          placeholder="140,00"
+                          className="w-full bg-transparent text-sm font-black text-emerald-400 outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="border-l border-slate-800 pl-3">
+                      <label className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">
+                        Total da Compra
+                      </label>
+                      <div className="flex items-center gap-1 mt-1">
+                        <span className="text-xs text-slate-400 font-bold">R$</span>
+                        <input
+                          type="text"
+                          value={totalAmountInput}
+                          onChange={(e) => handleTotalAmountInputChange(e.target.value)}
+                          placeholder="700,00"
+                          className="w-full bg-transparent text-sm font-black text-white outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-300 space-y-1">
+                    <p className="font-semibold">
+                      Serão geradas <strong>{installmentCount} parcelas de R$ {installmentAmountInput || '0,00'}</strong> (Total: R$ {totalAmountInput || '0,00'}).
+                    </p>
+                    <p className="text-slate-400">
+                      A 1ª parcela será lançada na data selecionada e as próximas {installmentCount - 1} parcelas serão distribuídas automaticamente nos meses subsequentes!
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

@@ -1,4 +1,12 @@
-import { Transaction, MonthSummary, Rule503020Stats, Category } from '../types/finance';
+import {
+  Transaction,
+  MonthSummary,
+  Rule503020Stats,
+  Category,
+  ComparisonPeriod,
+  MonthComparisonStats,
+  PeriodAnalyticsSummary,
+} from '../types/finance';
 
 export function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', {
@@ -229,4 +237,113 @@ export function generateFinancialTips(summary: MonthSummary, ruleStats: Rule5030
   }
 
   return tips;
+}
+
+export function getShortMonthLabel(monthKey: string): string {
+  const [year, month] = monthKey.split('-').map(Number);
+  const date = new Date(year, month - 1, 1);
+  const monthName = date.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
+  return `${monthName.charAt(0).toUpperCase() + monthName.slice(1)}/${String(year).slice(-2)}`;
+}
+
+export function getPreviousMonthKeys(baseMonthKey: string, count: number): string[] {
+  const keys: string[] = [];
+  const [baseYear, baseMonth] = baseMonthKey.split('-').map(Number);
+
+  for (let i = count - 1; i >= 0; i--) {
+    const d = new Date(baseYear, baseMonth - 1 - i, 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    keys.push(`${y}-${m}`);
+  }
+  return keys;
+}
+
+export function calculateMonthStats(transactions: Transaction[], monthKey: string): MonthComparisonStats {
+  const monthTxs = transactions.filter((t) => t.date.startsWith(monthKey));
+  let totalIncome = 0;
+  let totalExpense = 0;
+  const categoryBreakdown: Record<string, number> = {};
+
+  for (const t of monthTxs) {
+    if (t.type === 'income') {
+      totalIncome += t.amount;
+    } else {
+      totalExpense += t.amount;
+      categoryBreakdown[t.categoryId] = (categoryBreakdown[t.categoryId] || 0) + t.amount;
+    }
+  }
+
+  const sobra = totalIncome - totalExpense;
+  const savingsRate = totalIncome > 0 ? Math.round((sobra / totalIncome) * 100) : 0;
+
+  return {
+    monthKey,
+    monthLabel: getMonthLabel(monthKey),
+    shortLabel: getShortMonthLabel(monthKey),
+    totalIncome,
+    totalExpense,
+    sobra,
+    savingsRate,
+    categoryBreakdown,
+    transactionsCount: monthTxs.length,
+  };
+}
+
+export function calculatePeriodAnalytics(
+  transactions: Transaction[],
+  baseMonthKey: string,
+  period: ComparisonPeriod
+): PeriodAnalyticsSummary {
+  const countMap: Record<ComparisonPeriod, number> = {
+    bimestre: 2,
+    trimestre: 3,
+    semestre: 6,
+    ano: 12,
+  };
+
+  const count = countMap[period];
+  const monthKeys = getPreviousMonthKeys(baseMonthKey, count);
+  const months = monthKeys.map((k) => calculateMonthStats(transactions, k));
+
+  let totalIncomePeriod = 0;
+  let totalExpensePeriod = 0;
+  let totalSobraPeriod = 0;
+
+  for (const m of months) {
+    totalIncomePeriod += m.totalIncome;
+    totalExpensePeriod += m.totalExpense;
+    totalSobraPeriod += m.sobra;
+  }
+
+  const averageMonthlyIncome = count > 0 ? totalIncomePeriod / count : 0;
+  const averageMonthlyExpense = count > 0 ? totalExpensePeriod / count : 0;
+  const averageMonthlySobra = count > 0 ? totalSobraPeriod / count : 0;
+  const averageSavingsRate =
+    totalIncomePeriod > 0 ? Math.round((totalSobraPeriod / totalIncomePeriod) * 100) : 0;
+
+  // Filter months with activity for min/max ranks, otherwise use all
+  const activeMonths = months.filter((m) => m.transactionsCount > 0);
+  const pool = activeMonths.length > 0 ? activeMonths : months;
+
+  const bestSavingsMonth = [...pool].sort((a, b) => b.sobra - a.sobra)[0] || null;
+  const worstSavingsMonth = [...pool].sort((a, b) => a.sobra - b.sobra)[0] || null;
+  const highestSpendingMonth = [...pool].sort((a, b) => b.totalExpense - a.totalExpense)[0] || null;
+  const highestIncomeMonth = [...pool].sort((a, b) => b.totalIncome - a.totalIncome)[0] || null;
+
+  return {
+    period,
+    months,
+    totalIncomePeriod,
+    totalExpensePeriod,
+    totalSobraPeriod,
+    averageMonthlyIncome,
+    averageMonthlyExpense,
+    averageMonthlySobra,
+    averageSavingsRate,
+    bestSavingsMonth,
+    worstSavingsMonth,
+    highestSpendingMonth,
+    highestIncomeMonth,
+  };
 }

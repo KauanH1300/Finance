@@ -25,6 +25,30 @@ export interface Transaction {
   paymentMethod: PaymentMethod;
   notes?: string;
   isRecurring?: boolean;
+  installmentId?: string;
+  installmentNumber?: number;
+  totalInstallments?: number;
+  installmentTotalAmount?: number;
+  subscriptionId?: string;
+}
+
+export type RecurrenceType = 'subscription' | 'fixed_cost';
+export type BillingCycle = 'monthly' | 'yearly';
+
+export interface RecurringCost {
+  id: string;
+  name: string;
+  amount: number;
+  dueDay: number; // 1 to 31
+  type: RecurrenceType; // 'subscription' (Netflix, Spotify, apps) vs 'fixed_cost' (Aluguel, Luz, Internet)
+  categoryId: string;
+  bucket: PlanBucket;
+  billingCycle: BillingCycle;
+  isActive: boolean;
+  notes?: string;
+  iconName?: string;
+  color?: string;
+  serviceBrand?: string;
 }
 
 export interface SavingsGoal {
@@ -77,4 +101,34 @@ export interface Rule503020Stats {
     percent: number;
     status: 'optimal' | 'warning' | 'danger';
   };
+}
+
+export type ComparisonPeriod = 'bimestre' | 'trimestre' | 'semestre' | 'ano';
+
+export interface MonthComparisonStats {
+  monthKey: string; // YYYY-MM
+  monthLabel: string; // "setembro de 2026"
+  shortLabel: string; // "Set/26"
+  totalIncome: number;
+  totalExpense: number;
+  sobra: number;
+  savingsRate: number; // %
+  categoryBreakdown: Record<string, number>;
+  transactionsCount: number;
+}
+
+export interface PeriodAnalyticsSummary {
+  period: ComparisonPeriod;
+  months: MonthComparisonStats[];
+  totalIncomePeriod: number;
+  totalExpensePeriod: number;
+  totalSobraPeriod: number;
+  averageMonthlyIncome: number;
+  averageMonthlyExpense: number;
+  averageMonthlySobra: number;
+  averageSavingsRate: number;
+  bestSavingsMonth: MonthComparisonStats | null;
+  highestSpendingMonth: MonthComparisonStats | null;
+  highestIncomeMonth: MonthComparisonStats | null;
+  worstSavingsMonth: MonthComparisonStats | null;
 }

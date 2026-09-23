@@ -5,9 +5,11 @@ import {
   Rule503020Stats,
   Category,
   BudgetLimit,
+  SavingsGoal,
 } from '../types/finance';
 import { formatCurrency } from '../utils/financeCalculations';
 import { CategoryIcon } from './CategoryIcon';
+import { GoalsTab } from './GoalsTab';
 import {
   TrendingUp,
   Sparkles,
@@ -23,6 +25,7 @@ import {
   Calculator,
   CheckCircle,
   AlertTriangle,
+  PiggyBank,
 } from 'lucide-react';
 
 interface PlanningTabProps {
@@ -34,6 +37,12 @@ interface PlanningTabProps {
   onSaveBudgetLimit: (categoryId: string, limit: number) => void;
   onOpenNewTransaction: () => void;
   onGoToGoals: () => void;
+  savingsGoals?: SavingsGoal[];
+  onAddGoal?: (goal: Omit<SavingsGoal, 'id'>) => void;
+  onUpdateGoal?: (id: string, updates: Partial<SavingsGoal>) => void;
+  onDeleteGoal?: (id: string) => void;
+  onDepositToGoal?: (goalId: string, amount: number) => void;
+  initialSubTab?: 'rule' | 'goals';
 }
 
 export const PlanningTab: React.FC<PlanningTabProps> = ({
@@ -45,7 +54,14 @@ export const PlanningTab: React.FC<PlanningTabProps> = ({
   onSaveBudgetLimit,
   onOpenNewTransaction,
   onGoToGoals,
+  savingsGoals,
+  onAddGoal,
+  onUpdateGoal,
+  onDeleteGoal,
+  onDepositToGoal,
+  initialSubTab = 'rule',
 }) => {
+  const [subTab, setSubTab] = useState<'rule' | 'goals'>(initialSubTab);
   const [activeBucketDetails, setActiveBucketDetails] = useState<'necessity' | 'wants' | 'savings' | null>(null);
   const [editingBudgetCat, setEditingBudgetCat] = useState<string | null>(null);
   const [budgetLimitInput, setBudgetLimitInput] = useState<string>('');
@@ -109,19 +125,60 @@ export const PlanningTab: React.FC<PlanningTabProps> = ({
   };
 
   return (
-    <div className="space-y-6 pb-24">
-      {/* Header */}
-      <div>
-        <span className="text-xs font-semibold text-emerald-400 tracking-wider uppercase">
-          Organização Inteligente
-        </span>
-        <h1 className="text-2xl font-black text-white font-display">
-          Planejamento Financeiro
-        </h1>
-        <p className="text-xs text-slate-400 mt-1">
-          A regra clássica 50-30-20 ajustada para sua renda real e controle de sobras.
-        </p>
-      </div>
+    <div className="space-y-5 pb-24">
+      {/* Top Segmented SubTab Switcher if savingsGoals provided */}
+      {savingsGoals && (
+        <div className="grid grid-cols-2 p-1 bg-slate-900 rounded-2xl border border-slate-800 text-xs font-bold">
+          <button
+            type="button"
+            onClick={() => setSubTab('rule')}
+            className={`py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all ${
+              subTab === 'rule'
+                ? 'bg-slate-800 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <PieChart className="w-4 h-4 text-emerald-400" />
+            <span>Regra 50/30/20</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setSubTab('goals')}
+            className={`py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all ${
+              subTab === 'goals'
+                ? 'bg-slate-800 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <PiggyBank className="w-4 h-4 text-amber-400" />
+            <span>Cofrinhos & Metas ({savingsGoals.length})</span>
+          </button>
+        </div>
+      )}
+
+      {subTab === 'goals' && savingsGoals ? (
+        <GoalsTab
+          savingsGoals={savingsGoals}
+          summary={summary}
+          onAddGoal={onAddGoal!}
+          onUpdateGoal={onUpdateGoal!}
+          onDeleteGoal={onDeleteGoal!}
+          onDepositToGoal={onDepositToGoal!}
+        />
+      ) : (
+        <>
+          {/* Header */}
+          <div>
+            <span className="text-xs font-semibold text-emerald-400 tracking-wider uppercase">
+              Organização Inteligente
+            </span>
+            <h1 className="text-2xl font-black text-white font-display">
+              Planejamento Financeiro
+            </h1>
+            <p className="text-xs text-slate-400 mt-1">
+              A regra clássica 50-30-20 ajustada para sua renda real e controle de sobras.
+            </p>
+          </div>
 
       {/* 50-30-20 Interactive Pillars */}
       <div className="rounded-3xl bg-slate-900 border border-slate-800 p-5 space-y-5">
@@ -498,6 +555,8 @@ export const PlanningTab: React.FC<PlanningTabProps> = ({
           })}
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 };

@@ -4,12 +4,14 @@ import {
   Category,
   SavingsGoal,
   BudgetLimit,
+  RecurringCost,
 } from './types/finance';
 import {
   DEFAULT_CATEGORIES,
   getInitialTransactions,
   INITIAL_SAVINGS_GOALS,
   INITIAL_BUDGET_LIMITS,
+  INITIAL_RECURRING_COSTS,
 } from './data/initialData';
 import {
   calculateSummary,
@@ -22,9 +24,10 @@ import { OverviewTab } from './components/OverviewTab';
 import { TransactionsTab } from './components/TransactionsTab';
 import { PlanningTab } from './components/PlanningTab';
 import { GoalsTab } from './components/GoalsTab';
+import { AnalyticsDashboardTab } from './components/AnalyticsDashboardTab';
+import { SubscriptionsTab } from './components/SubscriptionsTab';
 import { TransactionModal } from './components/TransactionModal';
 import { SettingsModal } from './components/SettingsModal';
-import { PWAInstallModal } from './components/PWAInstallModal';
 import {
   Wallet,
   TrendingUp,
@@ -38,13 +41,15 @@ import {
   ChevronLeft,
   ChevronRight,
   ShieldCheck,
-  Download,
+  BarChart3,
+  CalendarClock,
 } from 'lucide-react';
 
 const STORAGE_KEYS = {
-  TRANSACTIONS: 'sobramais_transactions_v1',
+  TRANSACTIONS: 'sobramais_transactions_v2',
   GOALS: 'sobramais_goals_v1',
   BUDGETS: 'sobramais_budgets_v1',
+  RECURRING: 'sobramais_recurring_v1',
 };
 
 export default function App() {
@@ -52,7 +57,10 @@ export default function App() {
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length >= 15) return parsed;
+      }
     } catch (e) {
       console.error('Error loading transactions:', e);
     }
@@ -79,15 +87,26 @@ export default function App() {
     return INITIAL_BUDGET_LIMITS;
   });
 
+  const [recurringCosts, setRecurringCosts] = useState<RecurringCost[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.RECURRING);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error('Error loading recurring costs:', e);
+    }
+    return INITIAL_RECURRING_COSTS;
+  });
+
   const [categories] = useState<Category[]>(DEFAULT_CATEGORIES);
   const [currentMonthKey, setCurrentMonthKey] = useState<string>(getCurrentMonthKey);
-  const [activeTab, setActiveTab] = useState<'overview' | 'transactions' | 'planning' | 'goals'>('overview');
+  const [activeTab, setActiveTab] = useState<
+    'overview' | 'transactions' | 'subscriptions' | 'analytics' | 'planning' | 'goals'
+  >('overview');
 
   // Modal States
   const [isTxModalOpen, setIsTxModalOpen] = useState<boolean>(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
-  const [isInstallModalOpen, setIsInstallModalOpen] = useState<boolean>(false);
 
   // Desktop view toggle: Phone frame vs Expanded full-width
   const [isPhoneFrame, setIsPhoneFrame] = useState<boolean>(true);
@@ -116,6 +135,14 @@ export default function App() {
       console.error('Failed to save budgets', e);
     }
   }, [budgetLimits]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.RECURRING, JSON.stringify(recurringCosts));
+    } catch (e) {
+      console.error('Failed to save recurring costs', e);
+    }
+  }, [recurringCosts]);
 
   // Calculations for current month
   const summary = useMemo(() => {
@@ -146,6 +173,14 @@ export default function App() {
     setEditingTransaction(null);
   };
 
+  const handleSaveBatchTransactions = (batch: Array<Omit<Transaction, 'id'>>) => {
+    const newItems: Transaction[] = batch.map((item, idx) => ({
+      ...item,
+      id: `tx-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
+    }));
+    setTransactions((prev) => [...newItems, ...prev]);
+  };
+
   const handleDeleteTransaction = (id: string) => {
     setTransactions((prev) => prev.filter((t) => t.id !== id));
   };
@@ -158,6 +193,48 @@ export default function App() {
           : t
       )
     );
+  };
+
+  // Handlers for Recurring Costs (Assinaturas & Custos Fixos)
+  const handleAddRecurringCost = (costData: Omit<RecurringCost, 'id'>) => {
+    const newCost: RecurringCost = {
+      ...costData,
+      id: `rec-${Date.now()}`,
+    };
+    setRecurringCosts((prev) => [...prev, newCost]);
+  };
+
+  const handleUpdateRecurringCost = (id: string, updates: Partial<RecurringCost>) => {
+    setRecurringCosts((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, ...updates } : c))
+    );
+  };
+
+  const handleDeleteRecurringCost = (id: string) => {
+    setRecurringCosts((prev) => prev.filter((c) => c.id !== id));
+  };
+
+  const handleLaunchRecurringToStatement = (cost: RecurringCost) => {
+    const [year, month] = currentMonthKey.split('-');
+    const dayStr = String(cost.dueDay).padStart(2, '0');
+    const txDate = `${year}-${month}-${dayStr}`;
+
+    const newTx: Transaction = {
+      id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      type: 'expense',
+      amount: cost.amount,
+      description: cost.name,
+      categoryId: cost.categoryId,
+      date: txDate,
+      status: 'completed',
+      bucket: cost.bucket,
+      paymentMethod: cost.type === 'fixed_cost' ? 'boleto' : 'credit',
+      isRecurring: true,
+      subscriptionId: cost.id,
+      notes: cost.notes ? `${cost.notes} · Lançamento Recorrente` : 'Lançamento Recorrente',
+    };
+
+    setTransactions((prev) => [newTx, ...prev]);
   };
 
   // Handlers for goals
@@ -226,6 +303,7 @@ export default function App() {
     setTransactions(getInitialTransactions());
     setSavingsGoals(INITIAL_SAVINGS_GOALS);
     setBudgetLimits(INITIAL_BUDGET_LIMITS);
+    setRecurringCosts(INITIAL_RECURRING_COSTS);
     setCurrentMonthKey(getCurrentMonthKey());
   };
 
@@ -233,6 +311,7 @@ export default function App() {
     setTransactions([]);
     setSavingsGoals([]);
     setBudgetLimits([]);
+    setRecurringCosts([]);
   };
 
   const handleExportJSON = () => {
@@ -340,16 +419,8 @@ export default function App() {
           </button>
         </div>
 
-        {/* Actions (Install App & Settings) */}
+        {/* Settings Action */}
         <div className="flex items-center gap-1">
-          <button
-            onClick={() => setIsInstallModalOpen(true)}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-bold transition-colors active:scale-95"
-            title="Instalar no Celular ou Gerar APK"
-          >
-            <Download className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
-            <span className="hidden sm:inline">Instalar</span>
-          </button>
           <button
             onClick={() => setIsSettingsOpen(true)}
             className="w-9 h-9 rounded-xl hover:bg-slate-900 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
@@ -382,6 +453,7 @@ export default function App() {
             onGoToPlanning={() => setActiveTab('planning')}
             onGoToGoals={() => setActiveTab('goals')}
             onGoToTransactions={() => setActiveTab('transactions')}
+            onGoToAnalytics={() => setActiveTab('analytics')}
             onDepositToGoal={handleDepositToGoal}
           />
         )}
@@ -404,6 +476,27 @@ export default function App() {
           />
         )}
 
+        {activeTab === 'subscriptions' && (
+          <SubscriptionsTab
+            recurringCosts={recurringCosts}
+            categories={categories}
+            currentMonthKey={currentMonthKey}
+            transactions={transactions}
+            onAddRecurringCost={handleAddRecurringCost}
+            onUpdateRecurringCost={handleUpdateRecurringCost}
+            onDeleteRecurringCost={handleDeleteRecurringCost}
+            onLaunchToStatement={handleLaunchRecurringToStatement}
+          />
+        )}
+
+        {activeTab === 'analytics' && (
+          <AnalyticsDashboardTab
+            transactions={transactions}
+            categories={categories}
+            currentMonthKey={currentMonthKey}
+          />
+        )}
+
         {activeTab === 'planning' && (
           <PlanningTab
             summary={summary}
@@ -417,24 +510,41 @@ export default function App() {
               setIsTxModalOpen(true);
             }}
             onGoToGoals={() => setActiveTab('goals')}
-          />
-        )}
-
-        {activeTab === 'goals' && (
-          <GoalsTab
             savingsGoals={savingsGoals}
-            summary={summary}
             onAddGoal={handleAddGoal}
             onUpdateGoal={handleUpdateGoal}
             onDeleteGoal={handleDeleteGoal}
             onDepositToGoal={handleDepositToGoal}
+            initialSubTab="rule"
+          />
+        )}
+
+        {activeTab === 'goals' && (
+          <PlanningTab
+            summary={summary}
+            ruleStats={ruleStats}
+            transactions={transactions.filter((t) => t.date.startsWith(currentMonthKey))}
+            categories={categories}
+            budgetLimits={budgetLimits}
+            onSaveBudgetLimit={handleSaveBudgetLimit}
+            onOpenNewTransaction={() => {
+              setEditingTransaction(null);
+              setIsTxModalOpen(true);
+            }}
+            onGoToGoals={() => setActiveTab('goals')}
+            savingsGoals={savingsGoals}
+            onAddGoal={handleAddGoal}
+            onUpdateGoal={handleUpdateGoal}
+            onDeleteGoal={handleDeleteGoal}
+            onDepositToGoal={handleDepositToGoal}
+            initialSubTab="goals"
           />
         )}
       </main>
 
       {/* Fixed Bottom Tab Navigation (Mobile Ergonomic Pattern) */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 max-w-md mx-auto sm:rounded-b-3xl">
-        <div className="grid grid-cols-4 items-center h-16 px-2">
+        <div className="grid grid-cols-5 items-center h-16 px-1">
           {/* Tab 1: Início */}
           <button
             onClick={() => setActiveTab('overview')}
@@ -457,26 +567,37 @@ export default function App() {
             <span className="text-[10px] tracking-tight mt-1">Extrato</span>
           </button>
 
-          {/* Tab 3: Planejamento */}
+          {/* Tab 3: Assinaturas & Fixos */}
+          <button
+            onClick={() => setActiveTab('subscriptions')}
+            className={`flex flex-col items-center justify-center py-1 transition-colors ${
+              activeTab === 'subscriptions' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <CalendarClock className="w-5 h-5" />
+            <span className="text-[10px] tracking-tight mt-1">Assinaturas</span>
+          </button>
+
+          {/* Tab 4: Dashboard Comparativo */}
+          <button
+            onClick={() => setActiveTab('analytics')}
+            className={`flex flex-col items-center justify-center py-1 transition-colors ${
+              activeTab === 'analytics' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <BarChart3 className="w-5 h-5" />
+            <span className="text-[10px] tracking-tight mt-1">Dashboard</span>
+          </button>
+
+          {/* Tab 5: Planejamento */}
           <button
             onClick={() => setActiveTab('planning')}
             className={`flex flex-col items-center justify-center py-1 transition-colors ${
-              activeTab === 'planning' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+              activeTab === 'planning' || activeTab === 'goals' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             <TrendingUp className="w-5 h-5" />
-            <span className="text-[10px] tracking-tight mt-1">Planejamento</span>
-          </button>
-
-          {/* Tab 4: Metas / Cofrinhos */}
-          <button
-            onClick={() => setActiveTab('goals')}
-            className={`flex flex-col items-center justify-center py-1 transition-colors ${
-              activeTab === 'goals' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <PiggyBank className="w-5 h-5" />
-            <span className="text-[10px] tracking-tight mt-1">Cofrinhos</span>
+            <span className="text-[10px] tracking-tight mt-1">Planejar</span>
           </button>
         </div>
       </nav>
@@ -489,6 +610,7 @@ export default function App() {
           setEditingTransaction(null);
         }}
         onSave={handleSaveTransaction}
+        onSaveInstallments={handleSaveBatchTransactions}
         editingTransaction={editingTransaction}
         categories={categories}
       />
@@ -502,12 +624,6 @@ export default function App() {
         onClearAllData={handleClearAllData}
         onExportJSON={handleExportJSON}
         onImportJSON={handleImportJSON}
-        onOpenInstallModal={() => setIsInstallModalOpen(true)}
-      />
-
-      <PWAInstallModal
-        isOpen={isInstallModalOpen}
-        onClose={() => setIsInstallModalOpen(false)}
       />
     </div>
   );
@@ -526,13 +642,6 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setIsInstallModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-xs font-bold text-emerald-300 border border-emerald-500/30 transition-colors"
-          >
-            <Download className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Instalar no Celular / APK</span>
-          </button>
           <button
             onClick={() => setIsPhoneFrame(!isPhoneFrame)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-xs font-semibold text-slate-300 hover:text-white border border-slate-800 transition-colors"

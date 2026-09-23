@@ -10,7 +10,6 @@ interface SettingsModalProps {
   onClearAllData: () => void;
   onExportJSON: () => void;
   onImportJSON: (jsonStr: string) => void;
-  onOpenInstallModal: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -22,7 +21,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onClearAllData,
   onExportJSON,
   onImportJSON,
-  onOpenInstallModal,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -141,29 +139,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               Limpar Tudo (Começar do Zero)
             </span>
             <span className="text-[10px] text-rose-400 font-bold">Apagar</span>
-          </button>
-        </div>
-
-        {/* Install on Mobile / APK Option */}
-        <div className="space-y-2 pt-1 border-t border-slate-800/80">
-          <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">
-            Aplicativo de Celular
-          </label>
-          <button
-            type="button"
-            onClick={() => {
-              onClose();
-              onOpenInstallModal();
-            }}
-            className="w-full p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/20 flex items-center justify-between text-xs text-emerald-300 transition-colors"
-          >
-            <span className="flex items-center gap-2 font-bold">
-              <Smartphone className="w-4 h-4 text-emerald-400" />
-              Instalar no Celular / Gerar APK
-            </span>
-            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-full">
-              PWA & APK
-            </span>
           </button>
         </div>
 

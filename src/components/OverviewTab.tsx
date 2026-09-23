@@ -22,6 +22,7 @@ import {
   Compass,
   ShieldCheck,
   TrendingUp,
+  BarChart3,
 } from 'lucide-react';
 
 interface OverviewTabProps {
@@ -37,6 +38,7 @@ interface OverviewTabProps {
   onGoToPlanning: () => void;
   onGoToGoals: () => void;
   onGoToTransactions: () => void;
+  onGoToAnalytics?: () => void;
   onDepositToGoal: (goalId: string, amount: number) => void;
 }
 
@@ -53,6 +55,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   onGoToPlanning,
   onGoToGoals,
   onGoToTransactions,
+  onGoToAnalytics,
   onDepositToGoal,
 }) => {
   const tips = generateFinancialTips(summary, ruleStats);
@@ -300,6 +303,34 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
               </button>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Historical Comparison Teaser Card */}
+      {onGoToAnalytics && (
+        <div
+          onClick={onGoToAnalytics}
+          className="p-4 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-900 to-emerald-950/40 border border-slate-800 hover:border-emerald-500/40 cursor-pointer transition-all shadow-lg flex items-center justify-between group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform shrink-0">
+              <BarChart3 className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold text-white group-hover:text-emerald-300 transition-colors">
+                  Dashboard Comparativo
+                </span>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-400 font-extrabold px-1.5 py-0.5 rounded-md">
+                  Novo
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Compare Bimestre, Trimestre, Semestre e Ano. Descubra onde mais economizou!
+              </p>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
         </div>
       )}
 

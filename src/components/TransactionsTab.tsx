@@ -270,9 +270,16 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
                           </div>
 
                           <div className="min-w-0 flex-1">
-                            <p className="text-xs font-bold text-white truncate">
-                              {t.description}
-                            </p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-xs font-bold text-white truncate">
+                                {t.description}
+                              </p>
+                              {t.totalInstallments && (
+                                <span className="text-[10px] font-black text-amber-300 bg-amber-500/15 border border-amber-500/25 px-1.5 py-0.2 rounded shrink-0">
+                                  {t.installmentNumber}/{t.totalInstallments}x
+                                </span>
+                              )}
+                            </div>
                             <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5">
                               <span>{cat?.name || 'Geral'}</span>
                               <span>·</span>
