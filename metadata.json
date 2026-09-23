@@ -1,0 +1,6 @@
+{
+  "name": "SobraMais - Planejamento Financeiro Pessoal",
+  "description": "Aplicativo de celular para organização financeira inteligente, controle de receitas, despesas, planejamento 50-30-20 e cálculo de sobra mensal.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
