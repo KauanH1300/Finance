@@ -174,7 +174,25 @@ export const GoalsTab: React.FC<GoalsTabProps> = ({
 
       {/* Goals List */}
       <div className="space-y-4">
-        {savingsGoals.map((goal) => {
+        {savingsGoals.length === 0 ? (
+          <div className="p-8 text-center bg-slate-900/60 rounded-3xl border border-slate-800">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-3 text-emerald-400">
+              <PiggyBank className="w-6 h-6" />
+            </div>
+            <p className="text-sm font-bold text-white">Nenhum cofrinho ou meta cadastrada</p>
+            <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
+              Crie objetivos para guardar dinheiro (como Reserva de Emergência, Viagem, etc.) e acompanhe seu progresso.
+            </p>
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="mt-4 px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl inline-flex items-center gap-1.5 transition-all shadow-md shadow-emerald-500/20"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Criar Primeira Meta</span>
+            </button>
+          </div>
+        ) : (
+          savingsGoals.map((goal) => {
           const percent = Math.min(100, Math.round((goal.currentAmount / goal.targetAmount) * 100));
           const remaining = Math.max(0, goal.targetAmount - goal.currentAmount);
 
@@ -261,7 +279,7 @@ export const GoalsTab: React.FC<GoalsTabProps> = ({
               </div>
             </div>
           );
-        })}
+        }))}
       </div>
 
       {/* New Goal Modal */}

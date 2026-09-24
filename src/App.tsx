@@ -45,60 +45,47 @@ import {
   CalendarClock,
 } from 'lucide-react';
 
-const STORAGE_KEYS = {
-  TRANSACTIONS: 'sobramais_transactions_v2',
-  GOALS: 'sobramais_goals_v1',
-  BUDGETS: 'sobramais_budgets_v1',
-  RECURRING: 'sobramais_recurring_v1',
-};
+import {
+  STORAGE_KEYS,
+  getStoredTransactions,
+  getStoredGoals,
+  getStoredBudgets,
+  getStoredRecurring,
+  saveToStorage,
+  clearAllStorageData,
+  restoreDemoStorageData,
+} from './utils/storage';
 
 export default function App() {
-  // Load state from localStorage or initialize with defaults
-  const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length >= 15) return parsed;
-      }
-    } catch (e) {
-      console.error('Error loading transactions:', e);
-    }
-    return getInitialTransactions();
-  });
+  // Load state from localStorage or initialize with demo on first visit only
+  const [transactions, setTransactions] = useState<Transaction[]>(() =>
+    getStoredTransactions(getInitialTransactions)
+  );
 
-  const [savingsGoals, setSavingsGoals] = useState<SavingsGoal[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.GOALS);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error('Error loading goals:', e);
-    }
-    return INITIAL_SAVINGS_GOALS;
-  });
+  const [savingsGoals, setSavingsGoals] = useState<SavingsGoal[]>(() =>
+    getStoredGoals(INITIAL_SAVINGS_GOALS)
+  );
 
-  const [budgetLimits, setBudgetLimits] = useState<BudgetLimit[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.BUDGETS);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error('Error loading budgets:', e);
-    }
-    return INITIAL_BUDGET_LIMITS;
-  });
+  const [budgetLimits, setBudgetLimits] = useState<BudgetLimit[]>(() =>
+    getStoredBudgets(INITIAL_BUDGET_LIMITS)
+  );
 
-  const [recurringCosts, setRecurringCosts] = useState<RecurringCost[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.RECURRING);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error('Error loading recurring costs:', e);
-    }
-    return INITIAL_RECURRING_COSTS;
-  });
+  const [recurringCosts, setRecurringCosts] = useState<RecurringCost[]>(() =>
+    getStoredRecurring(INITIAL_RECURRING_COSTS)
+  );
 
   const [categories] = useState<Category[]>(DEFAULT_CATEGORIES);
-  const [currentMonthKey, setCurrentMonthKey] = useState<string>(getCurrentMonthKey);
+  const [currentMonthKey, setCurrentMonthKey] = useState<string>(() => {
+    try {
+      const savedMonth = localStorage.getItem('sobramais_current_month_v1');
+      if (savedMonth && /^\d{4}-\d{2}$/.test(savedMonth)) {
+        return savedMonth;
+      }
+    } catch {
+      // ignore
+    }
+    return getCurrentMonthKey();
+  });
   const [activeTab, setActiveTab] = useState<
     'overview' | 'transactions' | 'subscriptions' | 'analytics' | 'planning' | 'goals'
   >('overview');
@@ -113,36 +100,28 @@ export default function App() {
 
   // Sync to localStorage
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(transactions));
-    } catch (e) {
-      console.error('Failed to save transactions', e);
-    }
+    saveToStorage(STORAGE_KEYS.TRANSACTIONS, transactions);
   }, [transactions]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.GOALS, JSON.stringify(savingsGoals));
-    } catch (e) {
-      console.error('Failed to save goals', e);
-    }
+    saveToStorage(STORAGE_KEYS.GOALS, savingsGoals);
   }, [savingsGoals]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.BUDGETS, JSON.stringify(budgetLimits));
-    } catch (e) {
-      console.error('Failed to save budgets', e);
-    }
+    saveToStorage(STORAGE_KEYS.BUDGETS, budgetLimits);
   }, [budgetLimits]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.RECURRING, JSON.stringify(recurringCosts));
-    } catch (e) {
-      console.error('Failed to save recurring costs', e);
-    }
+    saveToStorage(STORAGE_KEYS.RECURRING, recurringCosts);
   }, [recurringCosts]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('sobramais_current_month_v1', currentMonthKey);
+    } catch {
+      // ignore
+    }
+  }, [currentMonthKey]);
 
   // Calculations for current month
   const summary = useMemo(() => {
@@ -300,11 +279,19 @@ export default function App() {
 
   // Data management
   const handleResetToDemoData = () => {
-    setTransactions(getInitialTransactions());
+    const demoTx = getInitialTransactions();
+    setTransactions(demoTx);
     setSavingsGoals(INITIAL_SAVINGS_GOALS);
     setBudgetLimits(INITIAL_BUDGET_LIMITS);
     setRecurringCosts(INITIAL_RECURRING_COSTS);
-    setCurrentMonthKey(getCurrentMonthKey());
+    const defaultMonth = getCurrentMonthKey();
+    setCurrentMonthKey(defaultMonth);
+    restoreDemoStorageData(
+      demoTx,
+      INITIAL_SAVINGS_GOALS,
+      INITIAL_BUDGET_LIMITS,
+      INITIAL_RECURRING_COSTS
+    );
   };
 
   const handleClearAllData = () => {
@@ -312,14 +299,18 @@ export default function App() {
     setSavingsGoals([]);
     setBudgetLimits([]);
     setRecurringCosts([]);
+    clearAllStorageData();
   };
 
   const handleExportJSON = () => {
     const data = {
+      app: 'SobraMais',
+      version: '2.0.0',
+      exportDate: new Date().toISOString(),
       transactions,
       savingsGoals,
       budgetLimits,
-      exportDate: new Date().toISOString(),
+      recurringCosts,
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -333,16 +324,39 @@ export default function App() {
   const handleImportJSON = (jsonStr: string) => {
     try {
       const parsed = JSON.parse(jsonStr);
+      let loaded = false;
+
       if (Array.isArray(parsed.transactions)) {
         setTransactions(parsed.transactions);
+        saveToStorage(STORAGE_KEYS.TRANSACTIONS, parsed.transactions);
+        loaded = true;
       }
       if (Array.isArray(parsed.savingsGoals)) {
         setSavingsGoals(parsed.savingsGoals);
+        saveToStorage(STORAGE_KEYS.GOALS, parsed.savingsGoals);
+        loaded = true;
       }
       if (Array.isArray(parsed.budgetLimits)) {
         setBudgetLimits(parsed.budgetLimits);
+        saveToStorage(STORAGE_KEYS.BUDGETS, parsed.budgetLimits);
+        loaded = true;
       }
-    } catch (e) {
+      if (Array.isArray(parsed.recurringCosts)) {
+        setRecurringCosts(parsed.recurringCosts);
+        saveToStorage(STORAGE_KEYS.RECURRING, parsed.recurringCosts);
+        loaded = true;
+      }
+
+      if (loaded) {
+        try {
+          localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
+        } catch {
+          // ignore
+        }
+      } else {
+        alert('Nenhum dado compatível encontrado no arquivo de backup.');
+      }
+    } catch {
       alert('Arquivo de backup inválido.');
     }
   };

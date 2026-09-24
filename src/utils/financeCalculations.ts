@@ -180,6 +180,17 @@ export interface FinancialTip {
 export function generateFinancialTips(summary: MonthSummary, ruleStats: Rule503020Stats): FinancialTip[] {
   const tips: FinancialTip[] = [];
 
+  // When no transactions recorded yet
+  if (summary.totalIncome === 0 && summary.totalExpense === 0) {
+    tips.push({
+      id: 'tip-starter',
+      type: 'tip',
+      title: 'Comece seu planejamento financeiro',
+      message: 'Cadastre sua receita (salário ou extras) e seus primeiros gastos do mês para acompanhar quanto sobra e manter o controle total.',
+      actionText: 'Novo Registro',
+    });
+  }
+
   // Leftover analysis
   if (summary.projectedLeftover > 0) {
     tips.push({
