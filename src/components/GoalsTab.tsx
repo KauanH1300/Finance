@@ -448,9 +448,14 @@ export const GoalsTab: React.FC<GoalsTabProps> = ({
                     onClick={() => setDepositAmount(summary.projectedLeftover.toFixed(2))}
                     className="mt-2 text-xs font-medium text-emerald-400 hover:text-emerald-300 block"
                   >
-                    Usar sobra total do mês: {formatCurrency(summary.projectedLeftover)}
+                    Usar sobra livre do mês: {formatCurrency(summary.projectedLeftover)}
                   </button>
                 )}
+                <p className="mt-2 text-[11px] text-slate-400 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80">
+                  {depositType === 'deposit'
+                    ? '💡 Ao guardar, o valor é registrado no extrato como aporte e deduzido do quanto sobra no mês, garantindo que o dinheiro fique protegido para esta meta.'
+                    : '💡 Ao resgatar, o valor retorna para a sua conta e entra no extrato do mês como saldo disponível.'}
+                </p>
               </div>
 
               <button

@@ -106,7 +106,15 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 
         {/* The Big Highlight: Quanto Sobra */}
         <div className="mb-4">
-          <p className="text-xs text-slate-400 mb-0.5">Quanto Sobra Este Mês</p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-slate-400 mb-0.5">Quanto Sobra Livre Este Mês</p>
+            {summary.totalSavedInGoals > 0 && (
+              <span className="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full flex items-center gap-1">
+                <PiggyBank className="w-3 h-3 text-emerald-400" />
+                Caixinhas Deduzidas
+              </span>
+            )}
+          </div>
           <div className="flex items-baseline gap-2">
             <h2 className={`text-3xl sm:text-4xl font-black font-display tabular-nums tracking-tight ${
               isPositiveLeftover ? 'text-emerald-400' : 'text-rose-400'
@@ -115,9 +123,15 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             </h2>
           </div>
           <p className="text-xs text-slate-400 mt-1">
-            {isPositiveLeftover
-              ? `Taxa de economia de ${Math.round(summary.savingsRate)}% da sua renda total.`
-              : 'Gastos totais estão maiores que as receitas deste mês.'}
+            {summary.totalSavedInGoals > 0 ? (
+              <span>
+                Você já guardou <strong className="text-emerald-400 font-bold">{formatCurrency(summary.totalSavedInGoals)}</strong> em caixinhas. Sobra 100% livre sem comprometer suas metas.
+              </span>
+            ) : isPositiveLeftover ? (
+              `Taxa de economia de ${Math.round(summary.savingsRate)}% da sua renda total.`
+            ) : (
+              'Gastos totais estão maiores que as receitas deste mês.'
+            )}
           </p>
         </div>
 
@@ -129,7 +143,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
                 <ShieldCheck className="w-4 h-4" />
               </div>
               <div>
-                <p className="text-xs font-semibold text-white">Disponível por Dia</p>
+                <p className="text-xs font-semibold text-white">Disponível por Dia (Livre)</p>
                 <p className="text-[11px] text-slate-400">
                   Faltam {summary.daysRemainingInMonth} dias para fechar o mês
                 </p>
@@ -144,30 +158,36 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           </div>
         )}
 
-        {/* Income vs Expenses Mini Grid */}
-        <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-800/80">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
-              <ArrowUpRight className="w-5 h-5" />
+        {/* Income vs Expenses vs Caixinhas Grid */}
+        <div className="grid grid-cols-3 gap-2 pt-3 border-t border-slate-800/80">
+          <div className="flex flex-col">
+            <div className="flex items-center gap-1.5 text-emerald-400 mb-0.5">
+              <ArrowUpRight className="w-3.5 h-3.5" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Entradas</span>
             </div>
-            <div>
-              <span className="text-[11px] text-slate-400 block">Total Recebido</span>
-              <span className="text-sm font-bold text-emerald-400 tabular-nums">
-                {formatCurrency(summary.totalIncome)}
-              </span>
-            </div>
+            <span className="text-xs sm:text-sm font-bold text-emerald-400 tabular-nums">
+              {formatCurrency(summary.totalIncome)}
+            </span>
           </div>
 
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center shrink-0">
-              <ArrowDownLeft className="w-5 h-5" />
+          <div className="flex flex-col border-x border-slate-800/60 px-2">
+            <div className="flex items-center gap-1.5 text-rose-400 mb-0.5">
+              <ArrowDownLeft className="w-3.5 h-3.5" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 truncate">Contas/Gastos</span>
             </div>
-            <div>
-              <span className="text-[11px] text-slate-400 block">Total Despesas</span>
-              <span className="text-sm font-bold text-rose-400 tabular-nums">
-                {formatCurrency(summary.totalExpense)}
-              </span>
+            <span className="text-xs sm:text-sm font-bold text-rose-400 tabular-nums">
+              {formatCurrency(summary.expensesExcludingSavings)}
+            </span>
+          </div>
+
+          <div className="flex flex-col pl-1">
+            <div className="flex items-center gap-1.5 text-indigo-400 mb-0.5">
+              <PiggyBank className="w-3.5 h-3.5" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 truncate">Caixinhas</span>
             </div>
+            <span className="text-xs sm:text-sm font-bold text-indigo-400 tabular-nums">
+              {formatCurrency(summary.totalSavedInGoals)}
+            </span>
           </div>
         </div>
       </div>

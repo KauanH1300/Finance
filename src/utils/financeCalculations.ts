@@ -6,6 +6,7 @@ import {
   ComparisonPeriod,
   MonthComparisonStats,
   PeriodAnalyticsSummary,
+  RecurringCost,
 } from '../types/finance';
 
 export function formatCurrency(value: number): string {
@@ -42,6 +43,14 @@ export function getCurrentMonthKey(): string {
   return `${year}-${month}`;
 }
 
+export function getNextMonthKey(monthKey: string): string {
+  const [year, month] = monthKey.split('-').map(Number);
+  const date = new Date(year, month, 1);
+  const nextYear = date.getFullYear();
+  const nextMonth = String(date.getMonth() + 1).padStart(2, '0');
+  return `${nextYear}-${nextMonth}`;
+}
+
 export function getDaysRemainingInMonth(monthKey: string): number {
   const now = new Date();
   const currentKey = getCurrentMonthKey();
@@ -61,6 +70,14 @@ export function getDaysRemainingInMonth(monthKey: string): number {
   return 0; // Past month
 }
 
+export function isGoalTransaction(t: Transaction): boolean {
+  if (t.bucket === 'savings') return true;
+  if (t.categoryId === 'reserva' || t.categoryId === 'investimentos_aporte') return true;
+  const desc = (t.description || '').toLowerCase();
+  const notes = (t.notes || '').toLowerCase();
+  return desc.includes('cofrinho') || desc.includes('caixinha') || notes.includes('cofrinho') || notes.includes('caixinha');
+}
+
 export function calculateSummary(transactions: Transaction[], monthKey: string): MonthSummary {
   const monthTransactions = transactions.filter((t) => t.date.startsWith(monthKey));
 
@@ -70,6 +87,8 @@ export function calculateSummary(transactions: Transaction[], monthKey: string):
   let completedExpense = 0;
   let pendingIncome = 0;
   let pendingExpense = 0;
+  let expensesExcludingSavings = 0;
+  let totalSavedInGoals = 0;
 
   for (const t of monthTransactions) {
     if (t.type === 'income') {
@@ -81,6 +100,12 @@ export function calculateSummary(transactions: Transaction[], monthKey: string):
       }
     } else {
       totalExpense += t.amount;
+      if (isGoalTransaction(t)) {
+        totalSavedInGoals += t.amount;
+      } else {
+        expensesExcludingSavings += t.amount;
+      }
+
       if (t.status === 'completed') {
         completedExpense += t.amount;
       } else {
@@ -90,26 +115,99 @@ export function calculateSummary(transactions: Transaction[], monthKey: string):
   }
 
   const currentBalance = completedIncome - completedExpense;
+  // Quanto sobra livre: total de receitas menos despesas totais (incluindo o que já foi para caixinhas)
   const projectedLeftover = totalIncome - totalExpense;
+  // Sobra bruta antes de guardar em caixinhas
+  const grossLeftover = totalIncome - expensesExcludingSavings;
   const daysRemainingInMonth = getDaysRemainingInMonth(monthKey);
   
   // Safe daily spend: if projected leftover > 0 and days remaining > 0, how much can be spent per day
   const dailySafeSpend = daysRemainingInMonth > 0 ? Math.max(0, projectedLeftover / daysRemainingInMonth) : 0;
-  const savingsRate = totalIncome > 0 ? Math.max(0, ((totalIncome - totalExpense) / totalIncome) * 100) : 0;
+  // Taxa de poupança (guardado em caixinhas + sobra livre sobre a renda total)
+  const savingsRate = totalIncome > 0 ? Math.max(0, ((totalSavedInGoals + Math.max(0, projectedLeftover)) / totalIncome) * 100) : 0;
 
   return {
     totalIncome,
     totalExpense,
+    expensesExcludingSavings,
+    totalSavedInGoals,
     completedIncome,
     completedExpense,
     pendingIncome,
     pendingExpense,
     currentBalance,
     projectedLeftover,
+    grossLeftover,
     daysRemainingInMonth,
     dailySafeSpend,
     savingsRate,
   };
+}
+
+export function syncRecurringTransactions(
+  transactions: Transaction[],
+  recurringCosts: RecurringCost[],
+  targetMonthKeys: string[]
+): Transaction[] {
+  const activeCosts = recurringCosts.filter((c) => c.isActive);
+  if (activeCosts.length === 0) return transactions;
+
+  let currentList = [...transactions];
+  let hasChanges = false;
+
+  for (const monthKey of targetMonthKeys) {
+    if (!monthKey || !/^\d{4}-\d{2}$/.test(monthKey)) continue;
+
+    const [yearStr, monthStr] = monthKey.split('-');
+    const year = parseInt(yearStr, 10);
+    const month = parseInt(monthStr, 10);
+    const lastDayOfMonth = new Date(year, month, 0).getDate();
+
+    const monthTxs = currentList.filter((t) => t.date.startsWith(monthKey));
+
+    for (const cost of activeCosts) {
+      // Check if this recurring cost is already represented in this month
+      const exists = monthTxs.some(
+        (t) =>
+          t.subscriptionId === cost.id ||
+          (t.isRecurring && t.description.trim().toLowerCase() === cost.name.trim().toLowerCase())
+      );
+
+      if (!exists) {
+        const clampedDay = Math.min(cost.dueDay, lastDayOfMonth);
+        const dayStr = String(clampedDay).padStart(2, '0');
+        const txDate = `${yearStr}-${monthStr}-${dayStr}`;
+
+        const now = new Date();
+        const currentRealMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const isPastOrToday =
+          monthKey < currentRealMonthKey ||
+          (monthKey === currentRealMonthKey && clampedDay <= now.getDate());
+
+        const newTx: Transaction = {
+          id: `tx-rec-${cost.id}-${monthKey}`,
+          type: 'expense',
+          amount: cost.amount,
+          description: cost.name,
+          categoryId: cost.categoryId,
+          date: txDate,
+          status: isPastOrToday ? 'completed' : 'pending',
+          bucket: cost.bucket,
+          paymentMethod: cost.type === 'fixed_cost' ? 'boleto' : 'credit',
+          isRecurring: true,
+          subscriptionId: cost.id,
+          notes: cost.notes
+            ? `${cost.notes} · ${cost.type === 'subscription' ? 'Assinatura' : 'Custo Fixo'}`
+            : (cost.type === 'subscription' ? 'Assinatura' : 'Custo Fixo'),
+        };
+
+        currentList.push(newTx);
+        hasChanges = true;
+      }
+    }
+  }
+
+  return hasChanges ? currentList : transactions;
 }
 
 export function calculate503020(transactions: Transaction[], monthKey: string): Rule503020Stats {
@@ -192,11 +290,19 @@ export function generateFinancialTips(summary: MonthSummary, ruleStats: Rule5030
   }
 
   // Leftover analysis
-  if (summary.projectedLeftover > 0) {
+  if (summary.totalSavedInGoals > 0 && summary.projectedLeftover >= 0) {
+    tips.push({
+      id: 'tip-leftover-saved',
+      type: 'success',
+      title: `Caixinhas Alimentadas: ${formatCurrency(summary.totalSavedInGoals)} guardados`,
+      message: `Você já destinou ${formatCurrency(summary.totalSavedInGoals)} para suas metas este mês e ainda conta com ${formatCurrency(summary.projectedLeftover)} livres para gastar!`,
+      actionText: 'Ver Cofrinhos',
+    });
+  } else if (summary.projectedLeftover > 0) {
     tips.push({
       id: 'tip-leftover-pos',
       type: 'success',
-      title: `Previsão de Sobra: ${formatCurrency(summary.projectedLeftover)}`,
+      title: `Previsão de Sobra Livre: ${formatCurrency(summary.projectedLeftover)}`,
       message: `Você terminará o mês no verde! Você pode guardar essa sobra de ${formatCurrency(summary.projectedLeftover)} no seu cofrinho de emergência ou investimentos.`,
       actionText: 'Guardar no Cofrinho',
     });

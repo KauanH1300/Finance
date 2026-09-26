@@ -122,15 +122,15 @@ export const SubscriptionsTab: React.FC<SubscriptionsTabProps> = ({
   }, [recurringCosts, filterType]);
 
   // Check which recurring costs have already been recorded in current month transactions
-  const launchedMap = useMemo(() => {
-    const map: Record<string, boolean> = {};
+  const launchedTxMap = useMemo(() => {
+    const map: Record<string, Transaction | undefined> = {};
     const monthTx = transactions.filter((t) => t.date.startsWith(currentMonthKey));
 
     recurringCosts.forEach((c) => {
-      const match = monthTx.some(
+      const match = monthTx.find(
         (t) =>
-          t.description.toLowerCase().includes(c.name.toLowerCase()) ||
-          t.subscriptionId === c.id
+          t.subscriptionId === c.id ||
+          (t.isRecurring && t.description.toLowerCase().includes(c.name.toLowerCase()))
       );
       map[c.id] = match;
     });
@@ -365,7 +365,8 @@ export const SubscriptionsTab: React.FC<SubscriptionsTabProps> = ({
           </div>
         ) : (
           filteredCosts.map((cost) => {
-            const isLaunched = launchedMap[cost.id];
+            const launchedTx = launchedTxMap[cost.id];
+            const isLaunched = !!launchedTx;
             const isPastToday = cost.dueDay < todayDay;
             const isToday = cost.dueDay === todayDay;
             const daysLeft = cost.dueDay - todayDay;
@@ -441,10 +442,17 @@ export const SubscriptionsTab: React.FC<SubscriptionsTabProps> = ({
                   {/* Status Indicator for current month */}
                   <div className="flex items-center gap-1.5">
                     {isLaunched ? (
-                      <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-1 bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                        Lançado no Extrato
-                      </span>
+                      launchedTx?.status === 'completed' ? (
+                        <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-1 bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          Pago no Extrato
+                        </span>
+                      ) : (
+                        <span className="text-[11px] font-bold text-sky-400 flex items-center gap-1 bg-sky-500/10 px-2 py-0.5 rounded-lg border border-sky-500/20">
+                          <Clock className="w-3.5 h-3.5 text-sky-400" />
+                          No Extrato (Agendado)
+                        </span>
+                      )
                     ) : isToday ? (
                       <span className="text-[11px] font-bold text-amber-400 flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/20 animate-pulse">
                         <Clock className="w-3.5 h-3.5 text-amber-400" />

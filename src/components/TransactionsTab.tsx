@@ -16,6 +16,8 @@ import {
   Tag,
   ArrowUpRight,
   ArrowDownLeft,
+  PiggyBank,
+  Repeat,
 } from 'lucide-react';
 
 interface TransactionsTabProps {
@@ -270,13 +272,25 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
                           </div>
 
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               <p className="text-xs font-bold text-white truncate">
                                 {t.description}
                               </p>
                               {t.totalInstallments && (
                                 <span className="text-[10px] font-black text-amber-300 bg-amber-500/15 border border-amber-500/25 px-1.5 py-0.2 rounded shrink-0">
                                   {t.installmentNumber}/{t.totalInstallments}x
+                                </span>
+                              )}
+                              {(t.isRecurring || t.subscriptionId) && (
+                                <span className="text-[10px] font-bold text-sky-400 bg-sky-500/15 border border-sky-500/30 px-1.5 py-0.2 rounded-md shrink-0 flex items-center gap-1">
+                                  <Repeat className="w-2.5 h-2.5" />
+                                  Fixo
+                                </span>
+                              )}
+                              {(t.categoryId === 'reserva' || (t.notes && t.notes.includes('caixinha')) || t.description.toLowerCase().includes('cofrinho')) && (
+                                <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/15 border border-indigo-500/30 px-1.5 py-0.2 rounded-md shrink-0 flex items-center gap-1">
+                                  <PiggyBank className="w-2.5 h-2.5" />
+                                  Cofrinho
                                 </span>
                               )}
                             </div>

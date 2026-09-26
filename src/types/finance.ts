@@ -70,12 +70,15 @@ export interface BudgetLimit {
 export interface MonthSummary {
   totalIncome: number;
   totalExpense: number;
+  expensesExcludingSavings: number; // Gastos sem aportes em caixinhas/metas
+  totalSavedInGoals: number; // Total guardado em caixinhas/metas este mês
   completedIncome: number;
   completedExpense: number;
   pendingExpense: number;
   pendingIncome: number;
   currentBalance: number; // completedIncome - completedExpense
-  projectedLeftover: number; // totalIncome - totalExpense (quanto vai sobrar)
+  projectedLeftover: number; // totalIncome - totalExpense (quanto sobra livre)
+  grossLeftover: number; // totalIncome - expensesExcludingSavings (sobra antes de guardar)
   daysRemainingInMonth: number;
   dailySafeSpend: number; // leftover / daysRemaining
   savingsRate: number; // percent of income saved

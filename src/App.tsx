@@ -17,8 +17,10 @@ import {
   calculateSummary,
   calculate503020,
   getCurrentMonthKey,
+  getNextMonthKey,
   getMonthLabel,
   formatCurrency,
+  syncRecurringTransactions,
 } from './utils/financeCalculations';
 import { OverviewTab } from './components/OverviewTab';
 import { TransactionsTab } from './components/TransactionsTab';
@@ -123,6 +125,16 @@ export default function App() {
     }
   }, [currentMonthKey]);
 
+  // Auto-sync recurring costs (Assinaturas e Custos Fixos) into transactions for current and upcoming month
+  useEffect(() => {
+    if (recurringCosts.length === 0) return;
+    const nextMonth = getNextMonthKey(currentMonthKey);
+    setTransactions((prev) => {
+      const synced = syncRecurringTransactions(prev, recurringCosts, [currentMonthKey, nextMonth]);
+      return synced.length !== prev.length ? synced : prev;
+    });
+  }, [currentMonthKey, recurringCosts]);
+
   // Calculations for current month
   const summary = useMemo(() => {
     return calculateSummary(transactions, currentMonthKey);
@@ -180,17 +192,41 @@ export default function App() {
       ...costData,
       id: `rec-${Date.now()}`,
     };
+    const nextMonth = getNextMonthKey(currentMonthKey);
     setRecurringCosts((prev) => [...prev, newCost]);
+    setTransactions((prev) =>
+      syncRecurringTransactions(prev, [newCost], [currentMonthKey, nextMonth])
+    );
   };
 
   const handleUpdateRecurringCost = (id: string, updates: Partial<RecurringCost>) => {
     setRecurringCosts((prev) =>
       prev.map((c) => (c.id === id ? { ...c, ...updates } : c))
     );
+    setTransactions((prev) =>
+      prev.map((t) => {
+        if (t.subscriptionId === id) {
+          const updatedDate = updates.dueDay
+            ? `${t.date.substring(0, 8)}${String(updates.dueDay).padStart(2, '0')}`
+            : t.date;
+          return {
+            ...t,
+            description: updates.name ?? t.description,
+            amount: updates.amount ?? t.amount,
+            categoryId: updates.categoryId ?? t.categoryId,
+            bucket: updates.bucket ?? t.bucket,
+            date: updatedDate,
+          };
+        }
+        return t;
+      })
+    );
   };
 
   const handleDeleteRecurringCost = (id: string) => {
     setRecurringCosts((prev) => prev.filter((c) => c.id !== id));
+    // Remove pending recurring transactions linked to this cost in current/future months
+    setTransactions((prev) => prev.filter((t) => !(t.subscriptionId === id && t.status === 'pending')));
   };
 
   const handleLaunchRecurringToStatement = (cost: RecurringCost) => {
@@ -238,6 +274,9 @@ export default function App() {
   };
 
   const handleDepositToGoal = (goalId: string, amount: number) => {
+    const targetGoal = savingsGoals.find((g) => g.id === goalId);
+    if (!targetGoal) return;
+
     setSavingsGoals((prev) =>
       prev.map((g) => {
         if (g.id === goalId) {
@@ -247,6 +286,42 @@ export default function App() {
         return g;
       })
     );
+
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const txDate = todayStr.startsWith(currentMonthKey) ? todayStr : `${currentMonthKey}-01`;
+
+    if (amount > 0) {
+      // Guardar dinheiro no cofrinho: registra como aporte no extrato e deduz do quanto sobra esse mês
+      const newTx: Transaction = {
+        id: `tx-goal-${goalId}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        type: 'expense',
+        amount: Math.abs(amount),
+        description: `Cofrinho: ${targetGoal.title}`,
+        categoryId: 'reserva',
+        date: txDate,
+        status: 'completed',
+        bucket: 'savings',
+        paymentMethod: 'pix',
+        notes: `Destinado à caixinha "${targetGoal.title}"`,
+      };
+      setTransactions((prev) => [newTx, ...prev]);
+    } else if (amount < 0) {
+      // Resgate do cofrinho para a conta: registra como receita/resgate
+      const newTx: Transaction = {
+        id: `tx-goal-withdraw-${goalId}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        type: 'income',
+        amount: Math.abs(amount),
+        description: `Resgate Cofrinho: ${targetGoal.title}`,
+        categoryId: 'investimentos_rec',
+        date: txDate,
+        status: 'completed',
+        bucket: 'savings',
+        paymentMethod: 'pix',
+        notes: `Valor resgatado da caixinha "${targetGoal.title}"`,
+      };
+      setTransactions((prev) => [newTx, ...prev]);
+    }
   };
 
   // Handlers for Budget Limits
