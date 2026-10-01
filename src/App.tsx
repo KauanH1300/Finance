@@ -551,6 +551,7 @@ export default function App() {
           <TransactionsTab
             transactions={transactions.filter((t) => t.date.startsWith(currentMonthKey))}
             categories={categories}
+            summary={summary}
             onOpenNewTransaction={() => {
               setEditingTransaction(null);
               setIsTxModalOpen(true);

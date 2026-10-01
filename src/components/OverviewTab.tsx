@@ -106,14 +106,22 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 
         {/* The Big Highlight: Quanto Sobra */}
         <div className="mb-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-slate-400 mb-0.5">Quanto Sobra Livre Este Mês</p>
-            {summary.totalSavedInGoals > 0 && (
-              <span className="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full flex items-center gap-1">
-                <PiggyBank className="w-3 h-3 text-emerald-400" />
-                Caixinhas Deduzidas
-              </span>
-            )}
+          <div className="flex items-center justify-between flex-wrap gap-1.5">
+            <p className="text-xs text-slate-400 mb-0.5">Quanto Sobra Livre Total</p>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {summary.previousLeftover !== 0 && (
+                <span className="text-[11px] font-bold text-sky-400 bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <ArrowUpRight className="w-3 h-3 text-sky-400" />
+                  {summary.previousLeftover > 0 ? '+' : ''}{formatCurrency(summary.previousLeftover)} do mês anterior
+                </span>
+              )}
+              {summary.totalSavedInGoals > 0 && (
+                <span className="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <PiggyBank className="w-3 h-3 text-emerald-400" />
+                  Caixinhas Deduzidas
+                </span>
+              )}
+            </div>
           </div>
           <div className="flex items-baseline gap-2">
             <h2 className={`text-3xl sm:text-4xl font-black font-display tabular-nums tracking-tight ${
@@ -122,17 +130,27 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
               {formatCurrency(summary.projectedLeftover)}
             </h2>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
-            {summary.totalSavedInGoals > 0 ? (
-              <span>
-                Você já guardou <strong className="text-emerald-400 font-bold">{formatCurrency(summary.totalSavedInGoals)}</strong> em caixinhas. Sobra 100% livre sem comprometer suas metas.
-              </span>
-            ) : isPositiveLeftover ? (
-              `Taxa de economia de ${Math.round(summary.savingsRate)}% da sua renda total.`
-            ) : (
-              'Gastos totais estão maiores que as receitas deste mês.'
-            )}
-          </p>
+          <div className="text-xs text-slate-400 mt-1 space-y-0.5">
+            <p>
+              {summary.previousLeftover !== 0 ? (
+                <span>
+                  Inclui <strong className="text-sky-300 font-bold">{formatCurrency(summary.previousLeftover)}</strong> acumulados de meses anteriores.{' '}
+                  {summary.totalSavedInGoals > 0 && (
+                    <span>Você destinou <strong className="text-indigo-400 font-bold">{formatCurrency(summary.totalSavedInGoals)}</strong> a caixinhas neste mês. </span>
+                  )}
+                  Sobra gerada neste mês: <strong className="text-white font-medium">{formatCurrency(summary.monthLeftover)}</strong>.
+                </span>
+              ) : summary.totalSavedInGoals > 0 ? (
+                <span>
+                  Você já guardou <strong className="text-emerald-400 font-bold">{formatCurrency(summary.totalSavedInGoals)}</strong> em caixinhas. Sobra 100% livre sem comprometer suas metas.
+                </span>
+              ) : isPositiveLeftover ? (
+                `Taxa de economia de ${Math.round(summary.savingsRate)}% da sua renda total.`
+              ) : (
+                'Gastos totais estão maiores que as receitas deste mês.'
+              )}
+            </p>
+          </div>
         </div>
 
         {/* Safe Daily Spend Indicator */}
@@ -190,6 +208,18 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             </span>
           </div>
         </div>
+
+        {summary.previousLeftover !== 0 && (
+          <div className="mt-3 pt-2.5 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-400">
+            <span className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-sky-400 inline-block"></span>
+              Saldo transitado do mês anterior:
+            </span>
+            <span className={`font-bold tabular-nums ${summary.previousLeftover >= 0 ? 'text-sky-300' : 'text-rose-400'}`}>
+              {summary.previousLeftover >= 0 ? '+' : ''}{formatCurrency(summary.previousLeftover)}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* 50-30-20 Planning Snapshot Card */}

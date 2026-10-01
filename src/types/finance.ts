@@ -76,9 +76,11 @@ export interface MonthSummary {
   completedExpense: number;
   pendingExpense: number;
   pendingIncome: number;
-  currentBalance: number; // completedIncome - completedExpense
-  projectedLeftover: number; // totalIncome - totalExpense (quanto sobra livre)
-  grossLeftover: number; // totalIncome - expensesExcludingSavings (sobra antes de guardar)
+  currentBalance: number; // Saldo bancário real acumulado (incluindo meses anteriores)
+  projectedLeftover: number; // Sobra livre total acumulada (incluindo saldo vindo de meses anteriores)
+  monthLeftover: number; // Sobra gerada exclusivamente neste mês (totalIncome - totalExpense)
+  previousLeftover: number; // Saldo acumulado herdado de meses anteriores
+  grossLeftover: number; // totalIncome - expensesExcludingSavings + previousLeftover (sobra antes de guardar)
   daysRemainingInMonth: number;
   dailySafeSpend: number; // leftover / daysRemaining
   savingsRate: number; // percent of income saved

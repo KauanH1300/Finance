@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Transaction, Category, TransactionType } from '../types/finance';
+import { Transaction, Category, TransactionType, MonthSummary } from '../types/finance';
 import { formatCurrency, formatDateBR } from '../utils/financeCalculations';
 import { CategoryIcon } from './CategoryIcon';
 import {
@@ -23,6 +23,7 @@ import {
 interface TransactionsTabProps {
   transactions: Transaction[];
   categories: Category[];
+  summary?: MonthSummary;
   onOpenNewTransaction: () => void;
   onEditTransaction: (transaction: Transaction) => void;
   onDeleteTransaction: (id: string) => void;
@@ -33,6 +34,7 @@ interface TransactionsTabProps {
 export const TransactionsTab: React.FC<TransactionsTabProps> = ({
   transactions,
   categories,
+  summary,
   onOpenNewTransaction,
   onEditTransaction,
   onDeleteTransaction,
@@ -216,6 +218,27 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
           <span className="text-rose-400">-{formatCurrency(filteredExpense)}</span>
         </div>
       </div>
+
+      {/* Saldo de Meses Anteriores Card */}
+      {summary && summary.previousLeftover !== 0 && (
+        <div className="p-3.5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900 to-sky-950/40 border border-sky-500/25 flex items-center justify-between shadow-md">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-sky-500/15 border border-sky-500/25 text-sky-400 flex items-center justify-center shrink-0">
+              <ArrowUpRight className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-white">Saldo de Meses Anteriores</p>
+              <p className="text-[11px] text-slate-400">Sobra líquida transitada para este mês</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className={`text-xs font-black tabular-nums ${summary.previousLeftover >= 0 ? 'text-sky-300' : 'text-rose-400'}`}>
+              {summary.previousLeftover >= 0 ? '+' : ''}{formatCurrency(summary.previousLeftover)}
+            </p>
+            <span className="text-[10px] text-slate-500 font-medium">saldo inicial</span>
+          </div>
+        </div>
+      )}
 
       {/* Transactions List Grouped by Date */}
       {datesSorted.length === 0 ? (

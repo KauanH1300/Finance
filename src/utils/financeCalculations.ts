@@ -79,7 +79,33 @@ export function isGoalTransaction(t: Transaction): boolean {
 }
 
 export function calculateSummary(transactions: Transaction[], monthKey: string): MonthSummary {
+  // Transações de meses anteriores (tudo que ocorreu antes de 1º do mês atual)
+  const previousTransactions = transactions.filter((t) => t.date < `${monthKey}-01`);
   const monthTransactions = transactions.filter((t) => t.date.startsWith(monthKey));
+
+  // Acumulado de meses anteriores
+  let previousCompletedIncome = 0;
+  let previousCompletedExpense = 0;
+  let previousTotalIncome = 0;
+  let previousTotalExpense = 0;
+
+  for (const t of previousTransactions) {
+    if (t.type === 'income') {
+      previousTotalIncome += t.amount;
+      if (t.status === 'completed') {
+        previousCompletedIncome += t.amount;
+      }
+    } else {
+      previousTotalExpense += t.amount;
+      if (t.status === 'completed') {
+        previousCompletedExpense += t.amount;
+      }
+    }
+  }
+
+  // A sobra líquida que transitou dos meses anteriores
+  const previousLeftover = previousTotalIncome - previousTotalExpense;
+  const previousBalance = previousCompletedIncome - previousCompletedExpense;
 
   let totalIncome = 0;
   let totalExpense = 0;
@@ -114,17 +140,25 @@ export function calculateSummary(transactions: Transaction[], monthKey: string):
     }
   }
 
-  const currentBalance = completedIncome - completedExpense;
-  // Quanto sobra livre: total de receitas menos despesas totais (incluindo o que já foi para caixinhas)
-  const projectedLeftover = totalIncome - totalExpense;
-  // Sobra bruta antes de guardar em caixinhas
-  const grossLeftover = totalIncome - expensesExcludingSavings;
+  // Saldo bancário real acumulado (incluindo saldo dos meses anteriores)
+  const currentBalance = previousBalance + (completedIncome - completedExpense);
+
+  // Sobra gerada exclusivamente pelas movimentações deste mês
+  const monthLeftover = totalIncome - totalExpense;
+
+  // Quanto sobra livre total (mantém o que sobrou dos meses anteriores + o que sobra deste mês)
+  const projectedLeftover = previousLeftover + monthLeftover;
+
+  // Sobra bruta total antes de guardar em caixinhas neste mês
+  const grossLeftover = previousLeftover + (totalIncome - expensesExcludingSavings);
+
   const daysRemainingInMonth = getDaysRemainingInMonth(monthKey);
   
   // Safe daily spend: if projected leftover > 0 and days remaining > 0, how much can be spent per day
   const dailySafeSpend = daysRemainingInMonth > 0 ? Math.max(0, projectedLeftover / daysRemainingInMonth) : 0;
-  // Taxa de poupança (guardado em caixinhas + sobra livre sobre a renda total)
-  const savingsRate = totalIncome > 0 ? Math.max(0, ((totalSavedInGoals + Math.max(0, projectedLeftover)) / totalIncome) * 100) : 0;
+
+  // Taxa de poupança (guardado em caixinhas + sobra do mês sobre a renda total do mês)
+  const savingsRate = totalIncome > 0 ? Math.max(0, ((totalSavedInGoals + Math.max(0, monthLeftover)) / totalIncome) * 100) : 0;
 
   return {
     totalIncome,
@@ -137,6 +171,8 @@ export function calculateSummary(transactions: Transaction[], monthKey: string):
     pendingExpense,
     currentBalance,
     projectedLeftover,
+    monthLeftover,
+    previousLeftover,
     grossLeftover,
     daysRemainingInMonth,
     dailySafeSpend,
